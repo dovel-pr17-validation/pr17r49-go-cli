@@ -1,0 +1,194 @@
+package tools
+
+import (
+	"testing"
+
+	"github.com/akamai/cli/v2/pkg/version"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestVersionCompare(t *testing.T) {
+	versionTests := []struct {
+		left   string
+		right  string
+		result int
+	}{
+		{"0.9.9", "1.0.0", version.Smaller},
+		{"0.1.0", "0.2.0", version.Smaller},
+		{"0.3.0", "0.3.1", version.Smaller},
+		{"0.1.0", "0.1.0", version.Equals},
+		{"1.0.0", "0.9.9", version.Greater},
+		{"0.2.0", "0.1.0", version.Greater},
+		{"0.3.1", "0.3.0", version.Greater},
+		{"1", "2", version.Smaller},
+		{"1.1", "1.2", version.Smaller},
+		{"3.0.0", "3.1.4", version.Smaller},
+		{"1.1.0", "1.1.1", version.Smaller},
+		{"1.1.0", "1.1.1-dev", version.Smaller},
+		{"1.0.4", "1.1.1-dev", version.Smaller},
+		{"1.1.3", "1.1.4-dev", version.Smaller},
+	}
+
+	for _, tt := range versionTests {
+		if result := version.Compare(tt.left, tt.right); result != tt.result {
+			t.Errorf("versionCompare(%s, %s) => %d, wanted: %d", tt.left, tt.right, result, tt.result)
+		}
+	}
+}
+
+func TestGithubize(t *testing.T) {
+	githubizeTests := []struct {
+		repoName string
+		result   string
+	}{
+		{"property", "https://github.com/akamai/cli-property.git"},
+		{"cli-property", "https://github.com/akamai/cli-property.git"},
+		{"akamai/cli-property", "https://github.com/akamai/cli-property.git"},
+		{"https://github.com/akamai/cli-property.git", "https://github.com/akamai/cli-property.git"},
+		{"file:///local/repo/path", "file:///local/repo/path"},
+		{"file:///local/repo/path.git", "file:///local/repo/path.git"},
+		{"ssh://example.org:/repo/path", "example.org:/repo/path"},
+	}
+
+	for _, tt := range githubizeTests {
+		if result := Githubize(tt.repoName); result != tt.result {
+			t.Errorf("Githubize(%s) => %s, wanted: %s", tt.repoName, result, tt.result)
+		}
+	}
+}
+
+func TestNormalizeCommandName(t *testing.T) {
+	tests := map[string]struct {
+		name       string
+		normalized string
+		wantErr    bool
+	}{
+		"lowercases valid ASCII names": {
+			name:       "Command_123",
+			normalized: "command_123",
+		},
+		"rejects Unicode characters that lowercase to ASCII": {
+			name:    "\u212Aommand",
+			wantErr: true,
+		},
+		"rejects Windows traversal": {
+			name:    `x\..\..\escaped`,
+			wantErr: true,
+		},
+		"rejects empty names": {
+			name:    "",
+			wantErr: true,
+		},
+		"rejects leading hyphens": {
+			name:    "-command",
+			wantErr: true,
+		},
+		"rejects leading underscores": {
+			name:    "_command",
+			wantErr: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			normalized, err := NormalizeCommandName(test.name)
+			if test.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.normalized, normalized)
+		})
+	}
+}
+
+func TestCommandBinaryName(t *testing.T) {
+	tests := map[string]struct {
+		name       string
+		binaryName string
+		wantErr    bool
+	}{
+		"prefixes and lowercases valid names": {
+			name:       "Command_123",
+			binaryName: "akamai-command_123",
+		},
+		"rejects invalid names": {
+			name:    "x/../../escaped",
+			wantErr: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			binaryName, err := CommandBinaryName(test.name)
+			if test.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.binaryName, binaryName)
+		})
+	}
+}
+
+func TestCapitalizeFirstWord(t *testing.T) {
+	capitalizeTests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"a", "A"},
+		{"abc def", "Abc def"},
+		{"QWE RTY", "QWE RTY"},
+		{"0", "0"},
+		{"+", "+"},
+		{" ", " "},
+	}
+
+	for _, testCase := range capitalizeTests {
+		if result := CapitalizeFirstWord(testCase.input); result != testCase.expected {
+			t.Errorf("CapitalizeFirstWord(%s) => %s, wanted: %s", testCase.input, result, testCase.expected)
+		}
+	}
+}
+
+func TestInsertAfterNthWord(t *testing.T) {
+	tests := map[string]struct {
+		dest     string
+		val      string
+		index    int
+		expected string
+	}{
+		"insert in the middle": {
+			dest:     "test string with some words",
+			val:      "[inserted string] and",
+			index:    3,
+			expected: "test string with [inserted string] and some words",
+		},
+		"insert at last index": {
+			dest:     "test string with some words",
+			val:      "and [inserted string]",
+			index:    5,
+			expected: "test string with some words and [inserted string]",
+		},
+		"insert at index larger than size": {
+			dest:     "test string with some words",
+			val:      "and [inserted string]",
+			index:    6,
+			expected: "test string with some words and [inserted string]",
+		},
+		"insert at the beginning": {
+			dest:     "test string with some words",
+			val:      "[inserted string] and",
+			index:    0,
+			expected: "[inserted string] and test string with some words",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			res := InsertAfterNthWord(test.dest, test.val, test.index)
+			assert.Equal(t, test.expected, res)
+		})
+	}
+}

@@ -1,0 +1,105 @@
+{
+  "version": 1.0,
+  "packages": [
+    {
+      "title": "cli-1",
+      "name": "abc-1",
+      "commands": [
+        {
+          "name": "ClI-1",
+          "version": "1.0.0",
+          "description": "test for match on title"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "abc-2",
+      "name": "cli-2",
+      "version": "1.0.0",
+      "commands": [
+        {
+          "aliases": ["abc", "abc2"],
+          "name": "cli-2",
+          "version": "1.0.0",
+          "description": "test for match on name"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "abc-3",
+      "name": "abc-3",
+      "commands": [
+        {
+          "name": "abc-3",
+          "version": "1.0.0",
+          "description": "CLI - test for match on description"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "abc-4",
+      "name": "abc-4",
+      "commands": [
+        {
+          "name": "abc-4",
+          "version": "1.0.0",
+          "description": "abc - no match"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "abc-5",
+      "name": "abc-5",
+      "commands": [
+        {
+          "name": "cli",
+          "version": "1.0.0",
+          "description": "test for match on command name"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "CLI no cmd match",
+      "name": "cli-no-cmd-match",
+      "commands": [
+        {
+          "name": "abc-6",
+          "version": "1.0.0",
+          "description": "title and name match, but no match on command"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    },
+    {
+      "title": "sample",
+      "name": "SAMPLE",
+      "commands": [
+        {
+          "name": "sample",
+          "version": "2.0.0",
+          "description": "test for single match"
+        }
+      ],
+      "requirements": {
+        "node": "7.0.0"
+      }
+    }
+  ]
+}

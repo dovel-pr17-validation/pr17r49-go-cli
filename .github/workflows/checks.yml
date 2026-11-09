@@ -1,0 +1,25 @@
+name: build
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - v1
+      - master
+jobs:
+    test:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v7
+        - name: Set up Go
+          uses: actions/setup-go@v7
+          with:
+            go-version-file: 'go.mod'
+        - name: Create build
+          run: make build
+        - name: Run tests
+          run: make test
+        - name: Run golangci-lint
+          run: make lint

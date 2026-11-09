@@ -1,0 +1,13 @@
+{
+  "requirements": {
+    "go": "1.14.0"
+  },
+  "commands": [
+    {
+      "name": "installed",
+      "aliases": ["ac2"],
+      "description": "Test command",
+      "version": "1.0.0"
+    }
+  ]
+}

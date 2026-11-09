@@ -1,0 +1,121 @@
+package commands
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/akamai/cli/v2/pkg/color"
+	"github.com/akamai/cli/v2/pkg/log"
+	"github.com/akamai/cli/v2/pkg/packages"
+	"github.com/akamai/cli/v2/pkg/terminal"
+	"github.com/akamai/cli/v2/pkg/tools"
+	"github.com/urfave/cli/v3"
+)
+
+func cmdUninstall(langManager packages.LangManager) cli.ActionFunc {
+	return func(ctx context.Context, cmd *cli.Command) (e error) {
+		ctx = log.WithCommandContext(ctx, cmd.Name)
+		logger := log.FromContext(ctx)
+		start := time.Now()
+		logger.Debug("UNINSTALL START")
+		defer func() {
+			if e == nil {
+				logger.Debug(fmt.Sprintf("UNINSTALL FINISH: %v", time.Since(start)))
+			} else {
+				logger.Error(fmt.Sprintf("UNINSTALL ERROR: %v", e))
+			}
+		}()
+		for _, c := range cmd.Args().Slice() {
+			if err := uninstallPackage(ctx, langManager, c, logger); err != nil {
+				logger.Error(fmt.Sprintf("Error uninstalling package: %v", err))
+				return cli.Exit(color.RedString("%s", err.Error()), 1)
+			}
+		}
+
+		return nil
+	}
+}
+
+func uninstallPackage(ctx context.Context, langManager packages.LangManager, cmd string, logger *slog.Logger) error {
+	term := terminal.Get(ctx)
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error(fmt.Sprintf("No home directory detected: %v", err))
+		return fmt.Errorf("no home directory detected: %v", err)
+	}
+	home += string(filepath.Separator)
+	exec, _, err := findExec(ctx, langManager, cmd)
+	if err != nil {
+		if !errors.Is(err, packages.ErrNoExeFound) {
+			logger.Error(fmt.Sprintf("Command \"%s\" not found: %v", cmd, err))
+			return fmt.Errorf("command \"%s\" not found. Try \"%s help\" : %v", cmd, tools.Self(), err)
+		}
+
+		// err = ErrNoExeFound - there is a directory but without any executables
+		paths := filepath.SplitList(getPackageBinPaths())
+		for i, path := range paths {
+			// trim home directory part of a path to exclude cases where command name could be a part of it
+			path = strings.TrimPrefix(path, home)
+			// if trimmed path (akamai-cli defined) contains name of command to uninstall, delete directory
+			if strings.Contains(path, cmd) {
+				if err = os.RemoveAll(paths[i]); err != nil {
+					logger.Error(fmt.Sprintf("Unable to remove directory: %s", paths[i]))
+					return fmt.Errorf("could not remove directory %s: %v", paths[i], err)
+				}
+				logger.Debug(fmt.Sprintf("Removed directory: %s", paths[i]))
+				return nil
+			}
+		}
+		logger.Error(fmt.Sprintf("Command \"%s\" not found", cmd))
+		return fmt.Errorf("command \"%s\" not found. Try \"%s help\"", cmd, tools.Self())
+	}
+
+	term.Spinner().Start("Attempting to uninstall %q command...", cmd)
+	logger.Debug(fmt.Sprintf("Attempting to uninstall \"%s\" command...", cmd))
+
+	var repoDir string
+	if len(exec) == 1 {
+		repoDir = findPackageDir(filepath.Dir(exec[0]))
+	} else if len(exec) > 1 {
+		repoDir = findPackageDir(filepath.Dir(exec[len(exec)-1]))
+	}
+
+	if repoDir == "" {
+		term.Spinner().Fail()
+		logger.Error("Unable to uninstall, was it installed using \"akamai install\"?")
+		return errors.New("unable to uninstall, was it installed using " + color.CyanString("\"akamai install\"") + "?")
+	}
+
+	if err := os.RemoveAll(repoDir); err != nil {
+		term.Spinner().Fail()
+		logger.Error(fmt.Sprintf("Unable to remove directory: %s", repoDir))
+		return fmt.Errorf("unable to remove directory %s: %v", repoDir, err)
+	}
+
+	venvPath, err := tools.GetPkgVenvPath(fmt.Sprintf("cli-%s", cmd))
+	if err != nil {
+		term.Spinner().Fail()
+		logger.Error(fmt.Sprintf("Unable to get virtualenv path: %v", err))
+		return err
+	}
+	if _, err := os.Stat(venvPath); err == nil || !os.IsNotExist(err) {
+		logger.Debug("Attempting to remove package virtualenv directory")
+		if err := os.RemoveAll(venvPath); err != nil {
+			term.Spinner().Fail()
+			logger.Error(fmt.Sprintf("Unable to remove virtualenv directory: %s", venvPath))
+			return fmt.Errorf("unable to remove virtualenv directory %s: %v", repoDir, err)
+		}
+	}
+
+	term.Spinner().OK()
+	logger.Debug(fmt.Sprintf("Uninstalled \"%s\" command", cmd))
+
+	return nil
+}
